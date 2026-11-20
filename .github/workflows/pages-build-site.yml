@@ -1,20 +1,10 @@
-name: pages-build-site
+name: Deploy office editor to GitHub Pages
+
 on:
-  # The editor now lives at https://edit.chaxus.com (Cloudflare Pages).
-  # GitHub Pages publishes ONLY a client-side redirector (redirect/), so old
-  # ranuts.github.io/document/* links keep working (path + query preserved).
-  # GitHub Pages keeps serving the last published artifact, so the redirector
-  # only needs republishing when it changes; every other push to main used to
-  # redeploy the same two files. workflow_dispatch republishes by hand.
   push:
-    branches:
-      - main
-    paths:
-      - "redirect/**"
-      - ".github/workflows/pages-build-site.yml"
+    branches: [main]
   workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
@@ -26,29 +16,67 @@ concurrency:
 
 jobs:
   build:
-    name: Publish redirector
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    timeout-minutes: 40
     steps:
-      - name: Checkout
+      - name: Check out repository
         uses: actions/checkout@v7
 
-      # No build: just ship the static redirector (redirect/index.html + 404.html).
-      - name: Upload redirector artifact
-        uses: actions/upload-pages-artifact@v5
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
         with:
-          path: "./redirect"
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      # x2t.wasm.br holds Brotli bytes that only work when the host sends Content-Encoding: br
+      # (ranuts' Cloudflare _headers). GitHub Pages cannot, so the browser got compressed bytes
+      # ("expected magic word 00 61 73 6d"). Store the plain WASM under the same name instead:
+      # Emscripten falls back to ArrayBuffer instantiation when the MIME type is not
+      # application/wasm. Must run before the build fingerprints the vendor tree.
+      - name: Decompress x2t WASM for GitHub Pages
+        run: |
+          node -e '
+            const fs = require("fs"), zlib = require("zlib");
+            const p = "public/sdkjs/common/wasm/x2t/x2t.wasm.br";
+            const wasm = zlib.brotliDecompressSync(fs.readFileSync(p));
+            if (!wasm.subarray(0, 4).equals(Buffer.from([0, 97, 115, 109]))) throw new Error("not WASM");
+            fs.writeFileSync(p, wasm);
+            console.log("x2t WASM stored uncompressed:", wasm.length, "bytes");
+          '
+
+      - name: Install and build
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -r run prepare
+          pnpm run build
+
+      # GitHub Pages ignores _headers/_redirects; serve index.html for unknown routes instead.
+      - name: SPA fallback and custom domain
+        run: |
+          cp dist/index.html dist/404.html
+          echo "editor.sejong.dev" > dist/CNAME
+
+      - name: Report size
+        run: |
+          du -sh dist
+          find dist -type f -size +50M -exec ls -la {} \;
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
 
   deploy:
-    name: Deploy to GitHub Pages
     needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v5
