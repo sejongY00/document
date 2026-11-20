@@ -7,7 +7,13 @@ import { openDocumentFromUrl } from './document';
 import { getReadonlyMode, requestSaveDocument, setReadonlyMode } from './onlyoffice-editor';
 import { captureSavePoint, commitSavePoint } from './onlyoffice/save-point';
 import { hasUnsavedChanges, markDocumentSaved, onUnsavedChangesChange } from './unsaved-guard';
-import { installEmbedSaveShortcut, setEmbedCloseRequester, setEmbedSaveRequester } from './embed-save-bridge';
+import {
+  installEmbedSaveShortcut,
+  setEmbedCloseRequester,
+  setEmbedSaveRequester,
+  setEmbedSaveStatus,
+  type EmbedSaveStatus,
+} from './embed-save-bridge';
 
 type EmbedMessageType =
   | 'document:open'
@@ -16,6 +22,7 @@ type EmbedMessageType =
   | 'document:open-buffer'
   | 'document:set-readonly'
   | 'document:save'
+  | 'document:save-status'
   | 'document:get-state';
 
 type EmbedMessage = {
@@ -186,6 +193,7 @@ async function handleMessage(event: MessageEvent): Promise<void> {
       case 'document:open-url':
       case 'document:open-file':
       case 'document:open-buffer':
+        setEmbedSaveStatus('pristine');
         await handleOpen(payload);
         postToParent('document:opened', { readonly: getReadonlyMode() }, message.id);
         break;
@@ -228,6 +236,14 @@ async function handleMessage(event: MessageEvent): Promise<void> {
           },
           message.id,
         );
+        break;
+      }
+
+      case 'document:save-status': {
+        const status = payload.status;
+        if (status === 'pristine' || status === 'modified' || status === 'saved') {
+          setEmbedSaveStatus(status as EmbedSaveStatus);
+        }
         break;
       }
 
@@ -274,6 +290,7 @@ export function initEmbedApi(): void {
   // Pushed, not polled: the host needs it to decide when to save (a tab
   // switch, an idle timer) without exporting documents nobody touched.
   onUnsavedChangesChange((dirty) => {
+    if (dirty) setEmbedSaveStatus('modified');
     postToParent('document:dirty-changed', { dirty });
   });
   window.addEventListener('message', (event) => {

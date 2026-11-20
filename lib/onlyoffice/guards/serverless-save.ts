@@ -15,7 +15,11 @@
  *    nothing else changes.
  */
 import { isEmbedMode } from '../../embed-mode';
-import { installEmbedSaveShortcut, requestEmbedSave } from '../../embed-save-bridge';
+import {
+  installEmbedSaveShortcut,
+  mountEmbedSaveStatusBadge,
+  requestEmbedSave,
+} from '../../embed-save-bridge';
 import { installSaveStreamTracking } from '../save-stream';
 
 export function installServerlessSaveSemantics(win: Window): boolean {
@@ -66,5 +70,6 @@ export function installServerlessSaveSemantics(win: Window): boolean {
     console.log('[OO] serverless save semantics installed (autosave loop off, Save/Ctrl+S -> download stream)');
   }
   installEmbedSaveShortcut(win);
-  return Boolean(saveWin.__ooServerlessSavePatched) && installSaveStreamTracking(win);
+  const statusBadgeMounted = !isEmbedMode() || mountEmbedSaveStatusBadge(win.document);
+  return Boolean(saveWin.__ooServerlessSavePatched) && installSaveStreamTracking(win) && statusBadgeMounted;
 }

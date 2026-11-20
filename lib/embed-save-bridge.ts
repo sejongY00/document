@@ -6,11 +6,79 @@ type NavigatorWithUAData = Navigator & {
   };
 };
 
+export type EmbedSaveStatus = 'pristine' | 'modified' | 'saved';
+
 let saveRequester: (() => void) | null = null;
 let closeRequester: (() => void) | null = null;
 let lastSaveRequestAt = 0;
+let currentSaveStatus: EmbedSaveStatus = 'pristine';
 const SAVE_REQUEST_DEDUPE_MS = 150;
+const SAVE_STATUS_BADGE_ID = 'oo-embed-save-status';
+const SAVE_STATUS_STYLE_ID = 'oo-embed-save-status-css';
 const installedWindows = new WeakSet<Window>();
+const mountedStatusBadges = new Set<HTMLElement>();
+
+function formatSaveStatusSuffix(status: EmbedSaveStatus): string {
+  if (status === 'modified') return ' - 수정됨';
+  if (status === 'saved') return ' - 저장됨';
+  return '';
+}
+
+function syncMountedSaveStatusBadges(): void {
+  const text = formatSaveStatusSuffix(currentSaveStatus);
+  for (const badge of mountedStatusBadges) {
+    if (!badge.isConnected) {
+      mountedStatusBadges.delete(badge);
+      continue;
+    }
+    badge.textContent = text;
+    badge.dataset.saveStatus = currentSaveStatus;
+  }
+}
+
+export function setEmbedSaveStatus(status: EmbedSaveStatus): void {
+  currentSaveStatus = status;
+  syncMountedSaveStatusBadges();
+}
+
+export function mountEmbedSaveStatusBadge(doc: Document | null | undefined): boolean {
+  if (!isEmbedMode() || !doc) return false;
+  const titleBox = doc.getElementById('id-box-doc-name');
+  if (!titleBox) return false;
+
+  if (!doc.getElementById(SAVE_STATUS_STYLE_ID)) {
+    const style = doc.createElement('style');
+    style.id = SAVE_STATUS_STYLE_ID;
+    style.textContent = [
+      '.oo-embed-save-status {',
+      '  flex: 0 0 auto;',
+      '  white-space: pre;',
+      '  color: inherit;',
+      '  font-size: calc(var(--font-size-base-app-custom, var(--font-size-base, 11px)) + 1px);',
+      '  line-height: var(--header-input-line-height, 24px);',
+      '  opacity: 0.85;',
+      '  padding-right: 6px;',
+      '  user-select: none;',
+      '  pointer-events: none;',
+      '}',
+      '.oo-embed-save-status:empty {',
+      '  display: none;',
+      '}',
+    ].join('\n');
+    (doc.head || doc.documentElement)?.appendChild(style);
+  }
+
+  let badge = doc.getElementById(SAVE_STATUS_BADGE_ID);
+  if (!badge) {
+    badge = doc.createElement('span');
+    badge.id = SAVE_STATUS_BADGE_ID;
+    badge.className = 'oo-embed-save-status';
+    titleBox.appendChild(badge);
+  }
+  mountedStatusBadges.add(badge);
+  syncMountedSaveStatusBadges();
+  return true;
+}
 
 export function isApplePlatform(nav: Navigator | undefined = typeof navigator !== 'undefined' ? navigator : undefined): boolean {
   if (!nav) return false;
