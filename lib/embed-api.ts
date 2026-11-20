@@ -7,6 +7,7 @@ import { openDocumentFromUrl } from './document';
 import { getReadonlyMode, requestSaveDocument, setReadonlyMode } from './onlyoffice-editor';
 import { captureSavePoint, commitSavePoint } from './onlyoffice/save-point';
 import { hasUnsavedChanges, markDocumentSaved, onUnsavedChangesChange } from './unsaved-guard';
+import { installEmbedSaveShortcut, setEmbedCloseRequester, setEmbedSaveRequester } from './embed-save-bridge';
 
 type EmbedMessageType =
   | 'document:open'
@@ -267,6 +268,9 @@ export function initEmbedApi(): void {
   }
 
   document.body.classList.add('embed-mode');
+  setEmbedSaveRequester(() => postToParent('document:save-requested'));
+  setEmbedCloseRequester(() => postToParent('document:close-requested'));
+  installEmbedSaveShortcut(window);
   // Pushed, not polled: the host needs it to decide when to save (a tab
   // switch, an idle timer) without exporting documents nobody touched.
   onUnsavedChangesChange((dirty) => {

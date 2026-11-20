@@ -1,4 +1,5 @@
 import { isEmbedMode } from './embed-mode';
+import { requestEmbedClose } from './embed-save-bridge';
 import { getDocumentCloseRevision } from './document-open';
 import 'ranui/message';
 import { waitForAppWorkerControl } from './offline-worker-control';
@@ -192,7 +193,10 @@ function createPersonalEditorInstance(config: {
       customization: {
         ...(!isEmbedMode()
           ? { goback: { url: new URL('/', location.href).href, blank: false, text: t('editorBackHome') } }
-          : {}),
+          : {
+              goback: { text: t('editorBackHome'), blank: false, requestClose: true },
+              close: { visible: true, text: t('editorBackHome') },
+            }),
         help: false,
         // Keep About reachable for copyright, version, license and source
         // information. Product marks are hidden separately; see NOTICE.
@@ -284,6 +288,9 @@ function createPersonalEditorInstance(config: {
       // when this callback exists. Actual bytes arrive via the
       // onlyoffice-file-stream message, not through this event.
       onDownloadAs: () => {},
+      onRequestClose: () => {
+        requestEmbedClose();
+      },
       onError: (event: unknown) => {
         console.error('[OO] editor error:', event);
         // Surface a toast so users see more than a silent console line

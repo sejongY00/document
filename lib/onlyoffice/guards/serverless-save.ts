@@ -14,6 +14,8 @@
  *    our save UX consumes. Autosave-flagged calls keep the original path so
  *    nothing else changes.
  */
+import { isEmbedMode } from '../../embed-mode';
+import { installEmbedSaveShortcut, requestEmbedSave } from '../../embed-save-bridge';
 import { installSaveStreamTracking } from '../save-stream';
 
 export function installServerlessSaveSemantics(win: Window): boolean {
@@ -52,6 +54,7 @@ export function installServerlessSaveSemantics(win: Window): boolean {
     const DownloadOptions = saveWin.Asc.asc_CDownloadOptions;
     saveApi.asc_Save = function (isAutoSave?: boolean, isUndoRequest?: boolean) {
       if (isAutoSave) return origSave.call(this, isAutoSave, isUndoRequest);
+      if (isEmbedMode() && requestEmbedSave()) return true;
       const format = typeof this.documentFormatSave === 'number' ? this.documentFormatSave : undefined;
       if (format === undefined || typeof this.asc_DownloadAs !== 'function') {
         return origSave.call(this, isAutoSave, isUndoRequest);
@@ -62,5 +65,6 @@ export function installServerlessSaveSemantics(win: Window): boolean {
     saveWin.__ooServerlessSavePatched = true;
     console.log('[OO] serverless save semantics installed (autosave loop off, Save/Ctrl+S -> download stream)');
   }
+  installEmbedSaveShortcut(win);
   return Boolean(saveWin.__ooServerlessSavePatched) && installSaveStreamTracking(win);
 }
