@@ -15,11 +15,7 @@
  *    nothing else changes.
  */
 import { isEmbedMode } from '../../embed-mode';
-import {
-  installEmbedSaveShortcut,
-  mountEmbedSaveStatusBadge,
-  requestEmbedSave,
-} from '../../embed-save-bridge';
+import { installEmbedSaveShortcut, mountEmbedSaveStatusBadge, requestEmbedSave } from '../../embed-save-bridge';
 import { installSaveStreamTracking } from '../save-stream';
 
 export function installServerlessSaveSemantics(win: Window): boolean {

@@ -409,12 +409,21 @@ describe('onlyoffice-editor', () => {
       },
     );
 
-    it('does not expose home navigation in an embedded editor', async () => {
+    it('delegates home/close navigation to the host without a URL in an embedded editor', async () => {
       const previousUrl = location.href;
       history.replaceState(null, '', '/editor?embed=true');
       try {
         const config = await createAndGetConfig({ fileName: 'test.docx', fileType: 'docx' });
-        expect(config.editorConfig.customization.goback).toBeUndefined();
+        expect(config.editorConfig.customization.goback).toEqual({
+          text: expect.any(String),
+          blank: false,
+          requestClose: true,
+        });
+        expect(config.editorConfig.customization.goback.url).toBeUndefined();
+        expect(config.editorConfig.customization.close).toEqual({
+          visible: true,
+          text: expect.any(String),
+        });
       } finally {
         history.replaceState(null, '', previousUrl);
       }

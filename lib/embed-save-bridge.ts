@@ -80,7 +80,9 @@ export function mountEmbedSaveStatusBadge(doc: Document | null | undefined): boo
   return true;
 }
 
-export function isApplePlatform(nav: Navigator | undefined = typeof navigator !== 'undefined' ? navigator : undefined): boolean {
+export function isApplePlatform(
+  nav: Navigator | undefined = typeof navigator !== 'undefined' ? navigator : undefined,
+): boolean {
   if (!nav) return false;
   const uaNav = nav as NavigatorWithUAData;
   const platform = uaNav.userAgentData?.platform || nav.platform || '';

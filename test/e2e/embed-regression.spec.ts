@@ -518,6 +518,12 @@ test.describe('embed regression (real editor)', () => {
 
       // Raw export bytes return only to the editor's immediate host.
       (window as any).__stream = null;
+      (window as any).__saveRequested = false;
+      window.addEventListener('message', (e: MessageEvent) => {
+        if (e.data && e.data.type === 'document:save-requested') {
+          (window as any).__saveRequested = true;
+        }
+      });
       for (const w of [ed.parent]) {
         w.addEventListener('message', (e: MessageEvent) => {
           const d = e.data;
@@ -559,8 +565,9 @@ test.describe('embed regression (real editor)', () => {
     expect(afterEdit.btnDisabled, 'toolbar Save button should be enabled after an edit').toBe(false);
 
     // Trigger the save the way the toolbar/shortcut does (asc_Save with no
-    // autosave flag), inside the editor frame; the patched path routes it
-    // to asc_DownloadAs and the file stream must appear.
+    // autosave flag), inside the editor frame; in embed mode it forwards a
+    // `document:save-requested` event to the parent host, which then triggers
+    // `document:save` to obtain the file stream and saved File.
     await page.evaluate(() => {
       const visit = (): any =>
         window.__ooFrames.find((w) => {
@@ -569,9 +576,16 @@ test.describe('embed regression (real editor)', () => {
         });
       visit().Asc.editor.asc_Save();
     });
+    await expect.poll(() => page.evaluate(() => (window as any).__saveRequested), { timeout: 10_000 }).toBe(true);
+
+    const saved = await page.evaluate(async () => {
+      const reply = await post('document:save', {});
+      return { size: (reply as any).file.size as number };
+    });
     await expect.poll(() => page.evaluate(() => (window as any).__stream), { timeout: 60_000 }).toBeTruthy();
     const stream = await page.evaluate(() => (window as any).__stream);
     expect(stream.bytes).toBeGreaterThan(500);
+    expect(saved.size).toBeGreaterThan(500);
   });
 
   test('a failed chart-editor entry does not disable saving for the session (long-action counter leak)', async ({
