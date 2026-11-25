@@ -13,12 +13,13 @@
  * 15b. After the vendor enqueues the document's fonts, kick off LoadFontAsync
  *    for every still-unloaded face of every queued family at once.
  * 15c. Clamp NeedStyles after CheckFontNeeds from Document_CreateFontMap
- *    (Style 0..3 → face bits) instead of the open path's perpetual 15. Known
- *    families keep map bits | Regular | Italic (Italic covers chrome /
- *    placeholders that never appear in CreateFontMap). Families on the load
- *    list but absent from the map keep the vendor request (usually 15). Paste
- *    goes through LoadDocumentFonts2 without CheckFontNeeds, so it stays
- *    unclamped. Conversion savings need fontSources() to honor the same bits.
+ *    while preserving all face bits (NEED_STYLE_ALL) for known families:
+ *    CreateFontMap only walks direct run formatting and can report a family as
+ *    Regular-only (`1` or `Style: 0`) even when paragraph/heading styles inherit
+ *    Bold/BoldItalic on that same family. Families on the load list but absent
+ *    from the map keep the vendor request (usually 15). Paste goes through
+ *    LoadDocumentFonts2 without CheckFontNeeds, so it stays unclamped.
+ *    Conversion savings need fontSources() to honor the same bits.
  */
 
 /** NeedStyles face bits used by AscFonts / CFontLoader. */
@@ -70,10 +71,11 @@ export function needStylesByFamilyFromFontMap(fontMap: Record<string, unknown>):
 
 export function clampNeedStylesForFamily(requested: number | undefined, known: number | undefined): number {
   if (known !== undefined) {
-    // Always keep Regular. Also keep Italic: the word/slide chrome and some
-    // theme placeholders render italic without a body run that CreateFontMap
-    // would have seen; dropping it produced tip-level asc_onError -25 on open.
-    return known | NEED_STYLE_R | NEED_STYLE_I;
+    // Keep all face bits (R/I/B/BI): Document_CreateFontMap() can report a
+    // family as Regular-only (`1` or `Style: 0`) when Bold/BoldItalic comes
+    // from an inherited paragraph/heading style (<w:pStyle>). Dropping Bold
+    // leaves FontId null (m_pFaceInfo crash in sdk-all.js FlushWord) on open.
+    return known | NEED_STYLE_ALL;
   }
   // Fonts on the open list but absent from CreateFontMap are often style-sheet
   // / theme faces that Get_AllFontNames saw and CreateFontMap has not walked

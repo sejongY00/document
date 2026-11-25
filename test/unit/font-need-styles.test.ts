@@ -45,10 +45,9 @@ describe('needStylesByFamilyFromFontMap', () => {
 });
 
 describe('clampNeedStylesForFamily', () => {
-  it('uses the known map entry when present and keeps Regular + Italic', () => {
-    expect(clampNeedStylesForFamily(NEED_STYLE_ALL, NEED_STYLE_R | NEED_STYLE_B)).toBe(
-      NEED_STYLE_R | NEED_STYLE_I | NEED_STYLE_B,
-    );
+  it('preserves all face bits when a family is present in CreateFontMap', () => {
+    expect(clampNeedStylesForFamily(NEED_STYLE_ALL, NEED_STYLE_R)).toBe(NEED_STYLE_ALL);
+    expect(clampNeedStylesForFamily(NEED_STYLE_ALL, NEED_STYLE_R | NEED_STYLE_B)).toBe(NEED_STYLE_ALL);
   });
 
   it('keeps the vendor request for open-list extras not in CreateFontMap', () => {
