@@ -731,10 +731,9 @@ test.describe('embed regression (real editor)', () => {
   });
 
   test('open-time NeedStyles is clamped from Document_CreateFontMap (font-load 15c)', async ({ page, l0 }) => {
-    // Without the clamp, CheckFontNeeds builds CFont(name) so NeedStyles is
-    // always 15 and every face file of every family is queued. Reverse: disable
-    // installNeedStylesClamp / LoadDocumentFonts rewrite in font-loading.ts and
-    // this asserts __ooFontNeedStylesClamped false or Arial stays at 15.
+    // Without the hook, CheckFontNeeds builds CFont(name) without recording
+    // NeedStyles clamping. Keep all four face bits (15) so stylesheet-inherited
+    // Bold/BoldItalic faces cannot drop out and crash FlushWord (m_pFaceInfo).
     l0.allowConsole(/font prefetch|font-load acceleration|NeedStyles clamp/);
     const body =
       '<w:p><w:r><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/>' +
@@ -766,13 +765,14 @@ test.describe('embed regression (real editor)', () => {
     });
     expect(stats.hooked).toBe(true);
     expect(stats.clamped).toBe(true);
-    // CreateFontMap saw Regular + Bold; clamp also keeps Italic for chrome.
-    // Regular (1) | Italic (2) | Bold (4) = 7; must not stay at all-faces 15.
+    // Keep all 4 face bits (R|I|B|BI = 15) even when CreateFontMap only saw
+    // a subset, so inherited Bold/BoldItalic paragraph styles stay loadable.
     expect(stats.arial).not.toBeNull();
     expect(stats.arial! & 1).toBe(1);
     expect(stats.arial! & 2).toBe(2);
     expect(stats.arial! & 4).toBe(4);
-    expect(stats.arial).toBe(7);
+    expect(stats.arial! & 8).toBe(8);
+    expect(stats.arial).toBe(15);
   });
 
   test('opens a PDF through the vendor pdf editor', async ({ page }) => {
